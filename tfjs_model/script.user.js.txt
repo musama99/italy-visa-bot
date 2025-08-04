@@ -1,0 +1,70 @@
+// ==UserScript==
+// @name         Italy Visa CAPTCHA Auto Solver
+// @namespace    https://musama99.github.io/
+// @version      1.0
+// @description  Auto-solves Italy visa CAPTCHA with TensorFlow.js model
+// @author       M Usama
+// @match        *://*/*
+// @grant        none
+// @require      https://cdn.jsdelivr.net/npm/@tensorflow/tfjs
+// ==/UserScript==
+
+(async function () {
+  'use strict';
+
+  const MODEL_URL = "https://musama99.github.io/italy-visa-bot/model.json";
+  const model = await tf.loadLayersModel(MODEL_URL);
+  console.log("✅ Model loaded");
+
+  // Helper to convert base64 image to tensor
+  function imageToTensor(base64) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 28;
+        canvas.height = 28;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, 28, 28);
+        const imageData = ctx.getImageData(0, 0, 28, 28);
+        let tensor = tf.browser.fromPixels(imageData, 1)
+          .toFloat()
+          .div(255.0)
+          .expandDims(0);
+        resolve(tensor);
+      };
+      img.src = base64;
+    });
+  }
+
+  function getTargetNumber() {
+    const boxes = document.querySelectorAll('.box-label');
+    for (let box of boxes) {
+      const match = box.innerText.match(/number (\d{3})/);
+      if (match) return match[1];
+    }
+    return null;
+  }
+
+  async function solveCaptcha() {
+    const target = getTargetNumber();
+    if (!target) return console.warn("❌ Target number not found");
+    console.log("🎯 Target:", target);
+
+    const imgs = document.querySelectorAll('img.captcha-img');
+    for (let img of imgs) {
+      const base64 = img.src;
+      const tensor = await imageToTensor(base64);
+      const prediction = model.predict(tensor);
+      const predIndex = prediction.argMax(-1).dataSync()[0].toString().padStart(3, '0');
+      console.log("🧠 Predicted:", predIndex);
+      if (predIndex === target) {
+        img.click();
+        console.log("✅ Clicked:", predIndex);
+      }
+    }
+  }
+
+  // Run every 2 seconds
+  setInterval(solveCaptcha, 2000);
+})();

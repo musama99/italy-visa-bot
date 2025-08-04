@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Digit Classifier</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+</head>
+<body>
+  <h1>Digit Classifier</h1>
+  <canvas id="canvas" width="280" height="280" style="border:1px solid #000"></canvas>
+  <br>
+  <button onclick="predict()">Predict</button>
+  <p id="prediction">Prediction: </p>
+
+  <script>
+    let model;
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+
+    canvas.addEventListener('mousedown', () => isDrawing = true);
+    canvas.addEventListener('mouseup', () => isDrawing = false);
+    canvas.addEventListener('mousemove', draw);
+
+    function draw(e) {
+      if (!isDrawing) return;
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      ctx.arc(e.offsetX, e.offsetY, 10, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+  async function loadModel() {
+  try {
+    tf.env().set('DEBUG', true);  // Add this line for more logs
+    model = await tf.loadLayersModel("http://localhost:8000/model.json");
+    console.log("✅ Model loaded.");
+  } catch (err) {
+    console.error("❌ Model failed to load:", err);
+    document.getElementById("prediction").innerText = "❌ Model not loaded";
+  }
+}
+
+
+    async function predict() {
+      if (!model) {
+        alert("Model not loaded yet!");
+        return;
+      }
+
+      let imageData = ctx.getImageData(0, 0, 280, 280);
+      let tfImg = tf.browser.fromPixels(imageData, 1)
+        .resizeNearestNeighbor([28, 28])
+        .toFloat()
+        .div(255.0)
+        .expandDims(0);
+
+      let predictions = model.predict(tfImg);
+      let predictedClass = predictions.argMax(1).dataSync()[0];
+
+      document.getElementById("prediction").innerText = "Prediction: " + predictedClass;
+    }
+
+    loadModel();
+  </script>
+</body>
+</html>
